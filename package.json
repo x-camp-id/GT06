@@ -1,0 +1,14 @@
+{
+    "name": "gt06-oem",
+    "version": "0.1.0",
+    "description": "GT06 OEM-tolerant GPS protocol decoder",
+    "main": "index.js",
+    "keywords": [
+        "gt06",
+        "gps",
+        "telematics",
+        "tracker"
+    ],
+    "author": "Your Name",
+    "license": "MIT"
+}
