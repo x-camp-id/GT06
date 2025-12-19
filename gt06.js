@@ -1,6 +1,8 @@
 const getCrc16 = require('./crc16');
 const Cursor = require("./cursor");
 const readLbs = require("./readLbs");
+const decodeTerminalInfo = require("./terminalInfo");
+
 module.exports = Gt06 = function () {
     this.msgBufferRaw = new Array();
     this.msgBuffer = new Array();
@@ -109,10 +111,10 @@ function parseStatus(buffer) {
     const c = new Cursor(buffer);
 
     c.skip(2);
-    c.u8(); // length
-    c.u8(); // proto
+    const length = c.u8();
+    const protocol = c.u8();
 
-    const terminalInfo = c.u8();
+    const terminalRaw = c.u8();
     const voltage = c.u8();
     const gsm = c.u8();
 
@@ -123,11 +125,15 @@ function parseStatus(buffer) {
     c.skip(2);
 
     return {
-        terminalInfo,
-        voltage,
-        gsm,
-        lbs,
-        serial
+        ...normalizeCommon({
+            protocol,
+            terminalRaw,
+            voltage,
+            gsm,
+            lbs
+        }),
+        serial,
+        event: { type: "status" }
     };
 }
 
@@ -136,9 +142,9 @@ function parseLocation(buffer) {
 
     c.skip(2);              // 7878
     const length = c.u8();
-    const proto = c.u8();   // 0x12
+    const protocol = c.u8();   // 0x12
 
-    const fixTimeRaw = c.bytes(6);
+    const fixTime = c.bytes(6);
     const quantity = c.u8();
     const latRaw = c.u32();
     const lonRaw = c.u32();
@@ -152,15 +158,18 @@ function parseLocation(buffer) {
     c.skip(2);              // 0D0A
 
     return {
-        protocol: proto,
-        fixTime: parseDatetime(fixTimeRaw),
-        lat: decodeGt06Lat(latRaw, course),
-        lon: decodeGt06Lon(lonRaw, course),
-        speed,
-        course: course & 0x3FF,
-        lbs,
+        ...normalizeCommon({
+            protocol,
+            fixTime,
+            quantity,
+            latRaw,
+            lonRaw,
+            speed,
+            course,
+            lbs
+        }),
         serial,
-        crc
+        event: { type: "location" }
     };
 }
 
@@ -174,7 +183,7 @@ function parseAlarm(buffer) {
     const protocol = c.u8();   // 0x16
 
     // --- Datetime ---
-    const fixTimeRaw = c.bytes(6);
+    const fixTime = c.bytes(6);
 
     // --- GPS ---
     const quantity = c.u8();
@@ -187,42 +196,32 @@ function parseAlarm(buffer) {
     const lbs = readLbs(c);
 
     // --- Alarm / Status ---
-    const terminalInfo = c.u8();
-    const voltageLevel = c.u8();
-    const gsmSignal = c.u8();
+    const terminalRaw = c.u8();
+    const voltage = c.u8();
+    const gsm = c.u8();
     const alarmLang = c.u16();
 
     // --- Tail ---
-    const serialNr = c.u16();
+    const serial = c.u16();
     const crc = c.u16();
     c.skip(2);          // 0D0A
 
     return {
-        protocol,
-
-        fixTime: parseDatetime(fixTimeRaw).toISOString(),
-        fixTimestamp: parseDatetime(fixTimeRaw).getTime() / 1000,
-
-        satCnt: (quantity & 0xF0) >> 4,
-        satCntActive: (quantity & 0x0F),
-
-        lat: decodeGt06Lat(latRaw, course),
-        lon: decodeGt06Lon(lonRaw, course),
-        speed,
-        course: course & 0x03FF,
-
-        gpsPositioned: Boolean(course & 0x1000),
-        realTimeGps: Boolean(course & 0x2000),
-
-        lbs,
-
-        terminalInfo,
-        voltageLevel,
-        gsmSignal,
-        alarmLang,
-
-        serialNr,
-        crc
+        ...normalizeCommon({
+            protocol,
+            fixTime,
+            quantity,
+            latRaw,
+            lonRaw,
+            speed,
+            course,
+            terminalRaw,
+            voltage,
+            gsm,
+            lbs,
+        }),
+        serial,
+        event: { type: "alarm" }
     };
 }
 
@@ -286,4 +285,56 @@ function sliceMsgsInBuff(data) {
         redMsgBuff = new Buffer.from(redMsgBuff.slice(nextStart));
     }
     return msgArray;
+}
+
+function normalizeCommon({
+    protocol,
+    fixTime,
+    quantity,
+    latRaw,
+    lonRaw,
+    speed,
+    course,
+    terminalRaw,
+    voltage,
+    gsm,
+    lbs,
+}) {
+    return {
+        protocol,
+
+        time: fixTime
+            ? {
+                fixTime: parseDatetime(fixTime),
+                fixTimestamp: parseDatetime(fixTime).getTime() / 1000
+            }
+            : null,
+
+        position: latRaw !== undefined ? {
+            lat: decodeGt06Lat(latRaw, course),
+            lon: decodeGt06Lon(lonRaw, course),
+            speed,
+            course: course & 0x03FF,
+            gpsPositioned: Boolean(course & 0x1000),
+            realTimeGps: Boolean(course & 0x2000),
+            satellites: {
+                total: (quantity & 0xF0) >> 4,
+                active: quantity & 0x0F
+            }
+        } : null,
+
+        terminal: terminalRaw !== undefined
+            ? decodeTerminalInfo(terminalRaw)
+            : null,
+
+        power: voltage !== undefined
+            ? { voltageLevel: voltage }
+            : null,
+
+        network: gsm !== undefined
+            ? { gsmSignal: gsm }
+            : null,
+
+        lbs
+    };
 }
