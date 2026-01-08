@@ -2,7 +2,14 @@
     "name": "gt06-parser",
     "version": "0.1.0",
     "description": "GT06 GPS protocol decoder",
-    "main": "index.js",
+    "main": "src/index.js",
+    "scripts": {
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:output": "node test/output-test.js",
+        "lint": "eslint src test",
+        "format": "prettier --write \"src/**/*.js\" \"test/**/*.js\""
+    },
     "keywords": [
         "gt06",
         "gps",
@@ -10,5 +17,24 @@
         "tracker"
     ],
     "author": "Meisha Putradewan",
-    "license": "MIT"
+    "contributors": [
+        "Faris Rafi Pramana"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "jest": "^29.7.0",
+        "eslint": "^8.57.0",
+        "prettier": "^3.2.5"
+    },
+    "engines": {
+        "node": ">=14.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/yourusername/gt06-parser.git"
+    },
+    "bugs": {
+        "url": "https://github.com/yourusername/gt06-parser/issues"
+    },
+    "homepage": "https://github.com/yourusername/gt06-parser#readme"
 }

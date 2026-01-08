@@ -1,3 +1,11 @@
+/**
+ * Read LBS (Location Based Service) data from GT06 protocol
+ * @param {Cursor} cursor - Cursor positioned at LBS data
+ * @param {Object} options - Options for parsing
+ * @param {boolean} options.allowOem - Allow OEM-specific behavior (default: true)
+ * @param {number} options.minBytes - Minimum bytes for OEM mode (default: 8)
+ * @returns {Object|null} LBS data or null if not available
+ */
 function readLbs(cursor, options = {}) {
     const allowOem = options.allowOem !== false;
     const minBytes = options.minBytes || 8;
@@ -10,13 +18,13 @@ function readLbs(cursor, options = {}) {
 
     const bytesLeft = cursor.remaining() - 6; // serial + crc + stop
 
-    // OEM behavior: length = 0 tapi data tetap ada
+    // OEM behavior: length = 0 but data still exists
     if (allowOem && lbsLength === 0 && bytesLeft >= minBytes) {
         return {
             mcc: cursor.u16(),
             mnc: cursor.u8(),
             lac: cursor.u16(),
-            cellId: cursor.u32() & 0xFFFFFF
+            cellId: cursor.u32() & 0xffffff,
         };
     }
 
@@ -26,7 +34,7 @@ function readLbs(cursor, options = {}) {
             mcc: cursor.u16(),
             mnc: cursor.u8(),
             lac: cursor.u16(),
-            cellId: cursor.u32() & 0xFFFFFF
+            cellId: cursor.u32() & 0xffffff,
         };
     }
 

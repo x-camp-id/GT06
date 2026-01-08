@@ -240,6 +240,39 @@ The parser throws errors for:
 
 Always wrap `parse()` calls in try-catch blocks.
 
+## Testing
+
+This library includes unit tests and output tests to verify functionality.
+
+### Running Tests
+
+```bash
+npm test
+```
+
+### Test Coverage
+
+The test suite covers:
+- Login message parsing
+- Location message parsing
+- Error handling for invalid headers and unknown message types
+- Message buffer management
+
+### Output Testing
+
+Run the output test to see parsed data examples:
+
+```bash
+node test/output-test.js
+```
+
+This demonstrates the parser with sample messages and shows the expected output format.
+
+## Contributors
+
+- **Meisha Putradewan** - Original author
+- **Faris Rafi Pramana** - Contributor
+
 ## Protocol Notes
 
 - All messages start with 0x7878 and end with 0x0D0A

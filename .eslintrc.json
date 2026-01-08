@@ -1,0 +1,29 @@
+{
+    "env": {
+        "browser": false,
+        "commonjs": true,
+        "es2021": true,
+        "node": true
+    },
+    "extends": ["eslint:recommended"],
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+    },
+    "rules": {
+        "indent": ["error", 4],
+        "linebreak-style": ["off"], // Allow both LF and CRLF
+        "quotes": ["error", "double"],
+        "semi": ["error", "always"],
+        "no-unused-vars": ["warn"],
+        "no-console": "off"
+    },
+    "overrides": [
+        {
+            "files": ["test/**/*.js"],
+            "env": {
+                "jest": true
+            }
+        }
+    ]
+}
