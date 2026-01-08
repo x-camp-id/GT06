@@ -1,7 +1,7 @@
-const getCrc16 = require("./utils/crc16");
 const Cursor = require("./utils/cursor");
 const readLbs = require("./utils/readLbs");
 const decodeTerminalInfo = require("./utils/terminalInfo");
+const { getCrc16, validateCrc16 } = require("./utils/crc16");
 
 /**
  * GT06 GPS Protocol Parser
@@ -20,7 +20,7 @@ class Gt06 {
      */
     parse(data) {
         this.msgBufferRaw.length = 0;
-        const parsed = { expectsResponse: false };
+        const parsed = {};
 
         if (!checkHeader(data)) {
             throw { error: "Unknown message header", msg: data };
@@ -28,40 +28,61 @@ class Gt06 {
 
         this.msgBufferRaw = sliceMsgsInBuff(data).slice();
         this.msgBufferRaw.forEach((buffer, idx) => {
-            switch (buffer[3]) {
-                case 0x01: // Login Message
-                    Object.assign(parsed, parseLogin(buffer));
-                    parsed.expectsResponse = true;
-                    parsed.responseMsg = createResponse(buffer);
-                    break;
-                case 0x12: // Location Data Message
-                    Object.assign(parsed, parseLocation(buffer), { imei: this.imei });
-                    break;
-                case 0x16: // Alarm Data
-                    Object.assign(parsed, parseAlarm(buffer), { imei: this.imei });
-                    break;
-                case 0x13: // Status Information
-                case 0x15: // String Information
-                case 0x1a: // GPS, Query Address Information
-                case 0x80: // Command Information
-                    throw {
-                        error: "Message type not implemented",
-                        event: buffer[3],
-                    };
-                default:
-                    throw {
-                        error: "Unknown message type",
-                        event: buffer[3],
-                    };
+            parsed.parseTime = Date.now();
+            /* CRC Check */
+            if (!validateCrc16(buffer)) {
+                throw { error: "CRC checksum validation failed", msg: buffer };
             }
 
+            /* Protocol Switch */
+            const content = buffer.slice(4, buffer.length - 4);
             parsed.event = buffer[3];
-            parsed.parseTime = Date.now();
+            parsed.payload = {};
+            switch (parsed.event) {
+            case 0x01: // Login Message
+                parsed.expectsResponse = true;
+                Object.assign(parsed.payload, parseLogin(content));
+                break;
+            case 0x12: // Location Data Message
+                parsed.expectsResponse = false;
+                Object.assign(parsed.payload, parseLocation(content));
+                Object.assign(parsed.payload, parseLBS(content.slice(18)));
+                break;
+            case 0x13: // Status Information (Heartbeat)
+                parsed.expectsResponse = true;
+                Object.assign(parsed.payload, parseStatus(content));
+                break;
+            case 0x16: // Alarm Data
+                parsed.expectsResponse = true;
+                Object.assign(parsed.payload, parseAlarm(content));
+                break;
+            case 0x15: // String Information
+            case 0x1a: // GPS, Query Address Information
+            case 0x80: // Command Information
+                throw {
+                    error: "Message type not implemented",
+                    event: buffer[3],
+                };
+            default:
+                throw {
+                    error: "Unknown message type",
+                    event: buffer[3],
+                };
+            }
+
+            /* Serial Number */
+            parsed.serialNumber = data.readUInt16BE(12);
+
+            /* Response Message */
+            if (parsed.expectsResponse) {
+                parsed.responseMsg = createResponse(buffer);
+            }
 
             // Only assign to the main object on the last iteration
             if (idx === this.msgBufferRaw.length - 1) {
                 Object.assign(this, parsed);
             }
+
             this.msgBuffer.push(parsed);
         });
     }
@@ -90,10 +111,59 @@ function checkHeader(data) {
  * @returns {Object} Parsed login data
  */
 function parseLogin(data) {
+    const c = new Cursor(data);
+
     return {
-        imei: parseInt(data.slice(4, 12).toString("hex"), 10),
-        serialNumber: data.readUInt16BE(12),
-        // errorCheck: data.readUInt16BE(14)
+        imei: BigInt("0x" + c.bytes(8).toString("hex")).toString(),
+    };
+}
+
+/**
+ * Parse location message
+ * @param {Buffer} buffer - Message buffer
+ * @returns {Object} Parsed location data
+ */
+function parseLocation(buffer) {
+    const c = new Cursor(buffer);
+    
+    const datetime = c.bytes(6);
+    const satellites = c.u8();
+    const latitude = c.u32();
+    const longitude = c.u32();
+    const speed = c.u8();
+    const course = c.u16();
+
+    return {
+        datetime: parseDatetime(datetime).getTime(),
+        latitude: decodeGt06Lat(latitude, course),
+        longitude: decodeGt06Lon(longitude, course),
+        speed,
+        satellites: satellites & 0x0f,
+        gpsLength: satellites >> 4,
+        gpsFixed: (course & 0x1000) !== 0,
+        course: course & 0x03ff,
+    };
+}
+
+
+/**
+ * Parse location message
+ * @param {Buffer} buffer - Message buffer
+ * @returns {Object} Parsed location data
+ */
+function parseLBS(buffer) {
+    const c = new Cursor(buffer);
+    
+    const mcc = c.u16();
+    const mnc = c.u8();
+    const lac = c.u16();
+    const cellId = c.u32() & 0xffffff;
+
+    return {
+        mcc,
+        mnc,
+        lac,
+        cellId,
     };
 }
 
@@ -105,71 +175,16 @@ function parseLogin(data) {
 function parseStatus(buffer) {
     const c = new Cursor(buffer);
 
-    c.skip(2);
-    const length = c.u8();
-    const protocol = c.u8();
-
-    const terminalRaw = c.u8();
+    const terminal = c.u8();
     const voltage = c.u8();
-    const gsm = c.u8();
-
-    const lbs = readLbs(c);
-
-    const serial = c.u16();
-    const crc = c.u16();
-    c.skip(2);
+    const signal = c.u8();
+    const alarmLanguage = c.u16();
 
     return {
-        ...normalizeCommon({
-            protocol,
-            terminalRaw,
-            voltage,
-            gsm,
-            lbs,
-        }),
-        serial,
-        event: { type: "status" },
-    };
-}
-
-/**
- * Parse location message
- * @param {Buffer} buffer - Message buffer
- * @returns {Object} Parsed location data
- */
-function parseLocation(buffer) {
-    const c = new Cursor(buffer);
-
-    c.skip(2); // 7878
-    const length = c.u8();
-    const protocol = c.u8(); // 0x12
-    const fixTime = c.bytes(6);
-
-    const quantity = c.u8();
-    const latRaw = c.u32();
-    const lonRaw = c.u32();
-    const speed = c.u8();
-    const course = c.u16();
-
-    const lbs = readLbs(c);
-
-    const serial = c.u16();
-    const crc = c.u16();
-    c.skip(2); // 0D0A
-
-    return {
-        ...normalizeCommon({
-            protocol,
-            fixTime,
-            quantity,
-            latRaw,
-            lonRaw,
-            speed,
-            course,
-            lbs,
-        }),
-        serial,
-        event: { type: "location" },
+        terminal: decodeTerminalInfo(terminal),
+        voltage,
+        signal,
+        alarmLanguage,
     };
 }
 
@@ -179,53 +194,28 @@ function parseLocation(buffer) {
  * @returns {Object} Parsed alarm data
  */
 function parseAlarm(buffer) {
-    const c = new Cursor(buffer);
+    // --- Location Data ---
+    const location = parseLocation(buffer.slice(0, 18));
+    buffer = buffer.slice(18);
 
-    // --- Header ---
-    c.skip(2); // 7878
-    const length = c.u8();
-    const protocol = c.u8(); // 0x16
+    // --- LBS Data ---
+    const lbs_length = buffer[0];
+    var lbs = null;
+    if (lbs_length > 0) {
+        lbs = parseLBS(buffer.slice(1, 1 + lbs_length));
+        buffer = buffer.slice(1 + lbs_length);
+    } else {
+        buffer = buffer.slice(1);
+    }
 
-    // --- Datetime ---
-    const fixTime = c.bytes(6);
+    // --- Status Information ---
+    const status = parseStatus(buffer);
 
-    // --- GPS ---
-    const quantity = c.u8();
-    const latRaw = c.u32();
-    const lonRaw = c.u32();
-    const speed = c.u8();
-    const course = c.u16();
-
-    // --- LBS (OEM-safe) ---
-    const lbs = readLbs(c);
-
-    // --- Alarm / Status ---
-    const terminalRaw = c.u8();
-    const voltage = c.u8();
-    const gsm = c.u8();
-    const alarmLang = c.u16();
-
-    // --- Tail ---
-    const serial = c.u16();
-    const crc = c.u16();
-    c.skip(2); // 0D0A
 
     return {
-        ...normalizeCommon({
-            protocol,
-            fixTime,
-            quantity,
-            latRaw,
-            lonRaw,
-            speed,
-            course,
-            terminalRaw,
-            voltage,
-            gsm,
-            lbs,
-        }),
-        serial,
-        event: { type: "alarm" },
+        location,
+        ...(lbs ? { lbs } : {}),
+        status,
     };
 }
 
@@ -290,6 +280,8 @@ function appendCrc16(data) {
     data.writeUInt16BE(getCrc16(data.slice(2, 6)).readUInt16BE(0), data.length - 4);
 }
 
+
+
 /**
  * Slice multiple messages from buffer
  * @param {Buffer} data - Raw data buffer
@@ -317,60 +309,6 @@ function sliceMsgsInBuff(data) {
         redMsgBuff = Buffer.from(redMsgBuff.slice(nextStart));
     }
     return msgArray;
-}
-
-/**
- * Normalize common fields across message types
- * @param {Object} params - Common parameters
- * @returns {Object} Normalized data object
- */
-function normalizeCommon({
-    protocol,
-    fixTime,
-    quantity,
-    latRaw,
-    lonRaw,
-    speed,
-    course,
-    terminalRaw,
-    voltage,
-    gsm,
-    lbs,
-}) {
-    return {
-        protocol,
-
-        time: fixTime
-            ? {
-                  fixTime: parseDatetime(fixTime),
-                  fixTimestamp: parseDatetime(fixTime).getTime() / 1000,
-              }
-            : null,
-
-        position:
-            latRaw !== undefined
-                ? {
-                      lat: decodeGt06Lat(latRaw, course),
-                      lon: decodeGt06Lon(lonRaw, course),
-                      speed,
-                      course: course & 0x03ff,
-                      gpsPositioned: Boolean(course & 0x1000),
-                      realTimeGps: Boolean(course & 0x2000),
-                      satellites: {
-                          total: (quantity & 0xf0) >> 4,
-                          active: quantity & 0x0f,
-                      },
-                  }
-                : null,
-
-        terminal: terminalRaw !== undefined ? decodeTerminalInfo(terminalRaw) : null,
-
-        power: voltage !== undefined ? { voltageLevel: voltage } : null,
-
-        network: gsm !== undefined ? { gsmSignal: gsm } : null,
-
-        lbs,
-    };
 }
 
 module.exports = Gt06;

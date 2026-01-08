@@ -41,4 +41,27 @@ function getCrc16(input) {
     return ret;
 }
 
-module.exports = getCrc16;
+/**
+ * Validate CRC16 checksum of buffer
+ * @param {Buffer} data - Buffer to validate
+ * @returns {boolean} True if CRC is valid
+ */
+function validateCrc16(data) {
+    if (data.length < 6) {
+        return false; // Minimum message length
+    }
+
+    // Extract CRC from message (4th position from right, before 0x0D0A)
+    const receivedCrc = data.readUInt16BE(data.length - 4);
+
+    // Calculate CRC of the same data that appendCrc16 uses (bytes 2 : last 4)
+    const dataSlice = data.slice(2, data.length - 4);
+    const calculatedCrc = getCrc16(dataSlice).readUInt16BE(0);
+
+    return receivedCrc === calculatedCrc;
+}
+
+module.exports = {
+    getCrc16,
+    validateCrc16,
+};

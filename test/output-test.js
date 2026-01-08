@@ -4,56 +4,47 @@ const Gt06 = require("../src/parser");
 
 console.log("=== GT06 Parser Output Testing ===\n");
 
-// Test 1: Login message
-console.log("Test 1: Login Message");
-const loginData = Buffer.from("78780d010123456789012345678901234567890d0a", "hex");
-const parser1 = new Gt06();
+// // Test 1: Login message
+// console.log("Test 1: Login Message");
+// // const loginData = Buffer.from("78780d010123456789012345678901234567890d0a", "hex");
+// let loginData = [120,120,13,1,8,104,105,80,96,54,52,41,0,1,109,190,13,10];
+// loginData = Buffer.from(loginData);
+// const parser1 = new Gt06();
 
-try {
-    parser1.parse(loginData);
-    console.log("Parsed successfully:");
-    console.log("- IMEI:", parser1.imei);
-    console.log("- Serial Number:", parser1.serialNumber);
-    console.log("- Event:", parser1.event);
-    console.log("- Expects Response:", parser1.expectsResponse);
-    console.log(
-        "- Response Message:",
-        parser1.responseMsg ? parser1.responseMsg.toString("hex") : "None"
-    );
-} catch (error) {
-    console.log("Error:", error);
-}
+// try {
+//     parser1.parse(loginData);
+//     console.log("Parsed successfully:");
+//     console.log("Payload", parser1);
+// } catch (error) {
+//     console.log("Error:", error);
+// }
 
-console.log("\n" + "=".repeat(50) + "\n");
+// console.log("\n" + "=".repeat(50) + "\n");
 
-// Test 2: Location message
-console.log("Test 2: Location Message");
-const locationData = Buffer.from(
-    "78781f120b0a1f0e2a2c000000000000000000000000000000000000000000000000000000000d0a",
-    "hex"
-);
+// Test 2: Alarm message
+console.log("Test 2: Alarm Message");
+let alarmData = [120,120,37,22,26,1,8,8,13,30,170,0,171,4,163,11,118,63,163,0,16,133,0,67,5,0,0,2,0,2,128,185,13,10];
+alarmData = Buffer.from(alarmData);
 const parser2 = new Gt06();
 
 try {
-    parser2.parse(locationData);
+    parser2.parse(alarmData);
     console.log("Parsed successfully:");
-    console.log("- Event:", parser2.event);
-    console.log("- Position:", JSON.stringify(parser2.position, null, 2));
-    console.log("- Time:", parser2.time ? parser2.time.fixTime : "None");
+    console.log("Payload", parser2);
 } catch (error) {
     console.log("Error:", error);
 }
 
 console.log("\n" + "=".repeat(50) + "\n");
 
-// Test 3: Invalid data
-console.log("Test 3: Invalid Header");
-const invalidData = Buffer.from("1234567890", "hex");
-const parser3 = new Gt06();
+// // Test 3: Invalid data
+// console.log("Test 3: Invalid Header");
+// const invalidData = Buffer.from("1234567890", "hex");
+// const parser3 = new Gt06();
 
-try {
-    parser3.parse(invalidData);
-    console.log("Parsed successfully (unexpected)");
-} catch (error) {
-    console.log("Expected error:", error.error);
-}
+// try {
+//     parser3.parse(invalidData);
+//     console.log("Parsed successfully (unexpected)");
+// } catch (error) {
+//     console.log("Expected error:", error.error);
+// }
