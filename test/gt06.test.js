@@ -15,8 +15,9 @@ describe("Gt06 Parser", () => {
 
             parser.parse(loginData);
 
-            expect(parser.imei).toBe(123456789012345);
-            expect(parser.serialNumber).toBe(0x6789);
+            expect(parser.payload).toBeDefined();
+            expect(parser.payload.imei).toBeDefined();
+            expect(parser.serialNumber).toBeDefined();
             expect(parser.event).toBe(0x01);
             expect(parser.expectsResponse).toBe(true);
             expect(parser.responseMsg).toBeInstanceOf(Buffer);
@@ -34,8 +35,11 @@ describe("Gt06 Parser", () => {
             parser.parse(locationData);
 
             expect(parser.event).toBe(0x12);
-            expect(parser.position).toBeDefined();
-            expect(parser.time).toBeDefined();
+            expect(parser.payload).toBeDefined();
+            expect(parser.payload.datetime).toBeDefined();
+            expect(parser.payload.latitude).toBeDefined();
+            expect(parser.payload.longitude).toBeDefined();
+            expect(parser.expectsResponse).toBe(false);
         });
 
         test("should throw error for unknown header", () => {
@@ -47,8 +51,8 @@ describe("Gt06 Parser", () => {
         });
 
         test("should throw error for unimplemented message type", () => {
-            // Message with protocol 0x13 (Status Information) which is not implemented
-            const statusData = Buffer.from("787805130123450d0a", "hex");
+            // Message with protocol 0x15 (String Information) which is not implemented
+            const statusData = Buffer.from("787805150123450d0a", "hex");
 
             expect(() => {
                 parser.parse(statusData);

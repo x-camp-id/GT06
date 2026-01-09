@@ -1,5 +1,4 @@
 const Cursor = require("./utils/cursor");
-const readLbs = require("./utils/readLbs");
 const decodeTerminalInfo = require("./utils/terminalInfo");
 const { getCrc16, validateCrc16 } = require("./utils/crc16");
 

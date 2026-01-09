@@ -1,6 +1,6 @@
 {
     "name": "gt06-parser",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "GT06 GPS protocol decoder",
     "main": "src/index.js",
     "scripts": {
