@@ -113,7 +113,7 @@ function parseLogin(data) {
     const c = new Cursor(data);
 
     return {
-        imei: BigInt("0x" + c.bytes(8).toString("hex")).toString(),
+        imei: c.bytes(8).toString("hex"),
     };
 }
 
