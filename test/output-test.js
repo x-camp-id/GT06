@@ -4,22 +4,22 @@ const Gt06 = require("../src/parser");
 
 console.log("=== GT06 Parser Output Testing ===\n");
 
-// // Test 1: Login message
-// console.log("Test 1: Login Message");
-// // const loginData = Buffer.from("78780d010123456789012345678901234567890d0a", "hex");
-// let loginData = [120,120,13,1,8,104,105,80,96,54,52,41,0,1,109,190,13,10];
-// loginData = Buffer.from(loginData);
-// const parser1 = new Gt06();
+// Test 1: Login message
+console.log("Test 1: Login Message");
+// const loginData = Buffer.from("78780d010123456789012345678901234567890d0a", "hex");
+let loginData = [120,120,13,1,8,104,105,80,96,54,52,41,0,1,109,190,13,10];
+loginData = Buffer.from(loginData);
+const parser1 = new Gt06();
 
-// try {
-//     parser1.parse(loginData);
-//     console.log("Parsed successfully:");
-//     console.log("Payload", parser1);
-// } catch (error) {
-//     console.log("Error:", error);
-// }
+try {
+    parser1.parse(loginData);
+    console.log("Parsed successfully:");
+    console.log("Payload", parser1);
+} catch (error) {
+    console.log("Error:", error);
+}
 
-// console.log("\n" + "=".repeat(50) + "\n");
+console.log("\n" + "=".repeat(50) + "\n");
 
 // Test 2: Alarm message
 console.log("Test 2: Alarm Message");
